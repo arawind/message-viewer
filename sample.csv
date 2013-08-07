@@ -1,0 +1,7 @@
+"sms","SENT,READ","","+9199xxxxxxxx","","2013.04.07 12:44","","Message1 Text"
+"sms","READ,RECEIVED","+9198xxxxxxxx","","","2013.04.07 11:48","","Message2 Text abcabbab. "
+"sms","READ,RECEIVED","MM-FACEBK","","","2013.04.07 11:25","","Message3 text     ababa
+To Reply send SMS <text> to 09223055527"
+"sms","READ,RECEIVED","MM-FACEBK","","","2013.04.07 10:55","","Message4 text abacabbbb
+To Reply send SMS <text> to 09223055530"
+"sms","SENT,READ","+9198xxxxxxxx","+9198xxxxxxxx","","2013.04.07 00:35","","Message5 text"
