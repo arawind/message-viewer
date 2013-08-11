@@ -18,6 +18,8 @@
 #include <QByteArray>
 #include <QSqlRecord>
 #include <QRegularExpression>
+#include <QStandardPaths>
+#include <QCoreApplication>
 #include <QDebug>
 
 
@@ -48,6 +50,7 @@ messageViewer::messageViewer(QWidget *parent)
     QAction *fbImport = fileMenu->addAction("Import FB messages");
     QAction *contacts = fileMenu->addAction("Import Contacts");
     QAction *cleanContact = fileMenu->addAction("Cleanup Contacts");
+    QAction *clearDB = fileMenu->addAction("Clear DB");
 
 
     menubar->addMenu(fileMenu);
@@ -56,8 +59,9 @@ messageViewer::messageViewer(QWidget *parent)
     connect(contacts, SIGNAL(triggered()), SLOT(contactImport()));
     connect(cleanContact, SIGNAL(triggered()), SLOT(cleanContacts()));
     connect(fbImport, SIGNAL(triggered()), SLOT(fbImporter()));
+    connect(clearDB, SIGNAL(triggered()), SLOT(dbDelete()));
     connect(sideList, SIGNAL(clicked(QModelIndex)), SLOT(updateMessages(QModelIndex)));
-    dbase = QSqlDatabase::addDatabase("QSQLITE");
+
     if(dbOpen())
         setListViews();
 
@@ -234,9 +238,19 @@ QStandardItemModel* messageViewer::cleanup(QStandardItemModel *model){
 }
 
 bool messageViewer::dbOpen(){
+    if(!dbase.isValid()){
+        dbase = QSqlDatabase::addDatabase("QSQLITE");
+        dbase.setHostName("localhost");
 
-    dbase.setHostName("localhost");
-    dbase.setDatabaseName("my.db");
+        QCoreApplication::setOrganizationName("arawind");
+        QCoreApplication::setApplicationName("message-viewer");
+        QStringList path = QStandardPaths::standardLocations(QStandardPaths::DataLocation);
+        QDir dir = QDir::root();
+        if(dir.mkpath(path.first()))
+            dbase.setDatabaseName(path.first().append(QDir::separator()).append("my.db.sqlite"));
+
+        qDebug()<<path.first().append(QDir::separator()).append("my.db.sqlite");
+    }
     if(!dbase.open()){
         qDebug()<<"error "<<dbase.lastError();
         return false;
@@ -266,7 +280,6 @@ void messageViewer::setListViews(){
 void messageViewer::cleanContacts(){
     if(!dbOpen())
         return;
-    qDebug()<<"here"<<contactsData->rowCount();
     if(contactsData->rowCount() == 0)
         qDebug()<<"no rows";
     else{
@@ -312,8 +325,11 @@ void messageViewer::cleanContacts(){
             return;
 
         updateContactsTable();
+
+
     }
     setListViews();
+    qDebug()<<contactsData->rowCount();
     //sideList->setModel(contactsData);
     //dbase.close();
 }
@@ -381,7 +397,6 @@ void messageViewer::updateMessages(QModelIndex index){
     qDebug()<<contact->text();
 
     if(qry.exec()){
-
         while(qry.next()){
             aliases.append(qry.value("alias").toString());
             qDebug()<<qry.value("alias").toString();
@@ -451,25 +466,31 @@ void messageViewer::contactImport(){
     QMap<QString, QString> fromTableAlias;
     QMap<QString, QString> fromTableID;
 
-    qry.prepare("SELECT alias, contactID, displayString FROM contactAliases");
+    qry.prepare("CREATE TABLE IF NOT EXISTS contactAliases (aID integer primary key autoincrement, alias varchar(200) unique, contactID varchar(200), displayString text );");
+    if(!qry.exec())
+        return;
+    qry.prepare("CREATE TABLE IF NOT EXISTS contacts (cID integer primary key autoincrement, name text unique, numMessages integer, lastMssgTime text);");
+    if(!qry.exec())
+        return;
+
+    qry.clear();
+
+    qry.prepare("SELECT name,cid from contacts");
     if(!qry.exec())
         return;
     while(qry.next()){
-        fromTableAlias.insert(qry.value("alias").toString(), qry.value("displayString").toString());
-        fromTableID.insert(qry.value("contactID").toString(), qry.value("displayString").toString());
-        //qDebug()<<qry.value("contactID").toString();
+        fromTableID.insert(qry.value("name").toString(), qry.value("cid").toString());
     }
     qry.clear();
 
     while(iterator.hasNext()){
         iterator.next();
         QSqlQuery intQry;
-        if(!fromTableAlias.keys().contains(iterator.key()) && !fromTableID.keys().contains(iterator.key())){
-
+        if(!fromTableID.keys().contains(iterator.key())) // && !fromTableID.keys().contains(iterator.key()))
+        {
             intQry.prepare("INSERT OR REPLACE INTO contactAliases(alias, contactID, displayString)"
                         "VALUES (:alias, :contactID, :displayString)");
             intQry.bindValue(":alias", iterator.key());
-            //qry.bindValue(":alias2", iterator.key());
             intQry.bindValue(":contactID", iterator.key().right(10)); //ONLY TAKING TEL VALUES - 10 digits
             intQry.bindValue(":displayString", iterator.value());
             //qDebug()<<iterator.value()<<iterator.key().right(10);
@@ -479,63 +500,59 @@ void messageViewer::contactImport(){
             intQry.bindValue(":contactID", iterator.key().right(10));
             intQry.bindValue(":displayString", iterator.value());
             qDebug()<<iterator.value()<<iterator.key();
-            if(iterator.value()==". Amma")
-                qDebug()<<"--------";
+
         }
 
 
-        //qDebug()<<"this";
-        qDebug()<<iterator.value();
-
         if(!intQry.exec()){
-            qDebug()<<"i'mhere";
             qDebug()<<intQry.lastQuery();
             qDebug()<<intQry.lastError();
             break;
         }
         intQry.clear();
 
-        if(fromTableAlias.keys().contains(iterator.key()) || fromTableID.keys().contains(iterator.key())){
-            intQry.prepare("UPDATE OR IGNORE contacts SET name=:newname WHERE name=:oldname");
-            intQry.bindValue(":newname", iterator.value());
-            QString oldname = fromTableAlias.keys().contains(iterator.key()) ? fromTableAlias.value(iterator.key()) : fromTableID.value(iterator.key());
-            intQry.bindValue(":oldname", oldname);
-            //qDebug()<<oldname<<"this";
-        }
-        else{
-            intQry.prepare("INSERT OR REPLACE INTO contacts (name, lastMssgTime, numMessages) VALUES (:name, :last, :number)");
-            intQry.bindValue(":name", iterator.value());
-            intQry.bindValue(":last", QString::number(0));
-            intQry.bindValue(":number", 0);
-        }
-        if(!intQry.exec()){
-            qDebug()<<"no! no!";
-            qDebug()<<intQry.lastQuery();
-            qDebug()<<intQry.lastError();
-            break;
-        }
 
-        intQry.clear();
-
-        /*intQry.prepare("SELECT alias, contactID, displayString FROM contactAliases");
-        if(!intQry.exec()){
-            qDebug()<<"waaa!";
-            qDebug()<<intQry.lastQuery();
-            qDebug()<<intQry.lastError();
-            break;
-        }
-        fromTableAlias.clear();
-        fromTableID.clear();
-        while(intQry.next()){
-            fromTableAlias.insert(intQry.value("alias").toString(), intQry.value("displayString").toString());
-            fromTableID.insert(intQry.value("contactID").toString(), intQry.value("displayString").toString());
-
-        }
-        qDebug()<<"doin selects";
-        intQry.clear();*/
     }
 
     dbase.commit();
+
+    qry.prepare("SELECT name,cid from contacts");
+    if(!qry.exec())
+        return;
+    while(qry.next()){
+        fromTableAlias.insert(qry.value("name").toString(), qry.value("cid").toString());
+    }
+    qry.clear();
+
+    iterator.toFront();
+
+    dbase.transaction();
+
+    while(iterator.hasNext()){
+        iterator.next();
+        if(fromTableAlias.keys().contains(iterator.key().right(10))){ //search if the number is the old value
+            qry.prepare("UPDATE OR IGNORE contacts SET name=:newname WHERE cid=:idnum");
+            qry.bindValue(":idnum", fromTableAlias.value((iterator.key().right(10))).toInt()); //the corresponding id
+            qry.bindValue(":newname", iterator.value());
+
+            if(!qry.exec()){
+                qDebug()<<qry.lastError();
+            }
+            else
+                qDebug()<<"updating "<<iterator.value()<<fromTableAlias.value((iterator.key().right(10))).toInt();
+        }
+
+        else if(! fromTableAlias.keys().contains(iterator.value())){ //search if the name is not set
+            //qry.prepare("INSERT OR REPLACE INTO ")
+        }
+
+
+    }
+
+
+
+    dbase.commit();
+
     setListViews(); //this'll close the connection
     //dbase.close();
 }
@@ -548,4 +565,17 @@ void messageViewer::fbImporter(){
     QString text = file.readAll();
     FBparser parser(text);
     parser.parse();
+}
+
+void messageViewer::dbDelete(){
+    dbase.close();
+    dbase.removeDatabase(dbase.connectionName());
+    QStringList path = QStandardPaths::standardLocations(QStandardPaths::DataLocation);
+    QString filename = path.first().append(QDir::separator()).append("my.db.sqlite");
+    QFile::remove(filename);
+    if(contactsData->hasChildren())
+        contactsData->clear();
+    if(messagesData->hasChildren())
+        contactsData->clear();
+
 }

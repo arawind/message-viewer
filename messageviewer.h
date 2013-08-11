@@ -29,6 +29,7 @@ private slots:
     void updateMessages(QModelIndex);
     void contactImport();
     void fbImporter();
+    void dbDelete();
 };
 
 #endif // MESSAGEVIEWER_H
