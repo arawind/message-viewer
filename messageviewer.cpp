@@ -20,6 +20,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QCoreApplication>
+#include <QItemDelegate>
 #include <QDebug>
 
 
@@ -29,8 +30,6 @@ messageViewer::messageViewer(QWidget *parent)
     QMenuBar *menubar;
     menubar = new QMenuBar(this);
     QMenu *fileMenu;
-    //QPushButton *openButton;
-    //openButton = new QPushButton("Import CSV");
     QVBoxLayout *vert;
     QVBoxLayout *sideVert;
     vert = new QVBoxLayout();
@@ -38,7 +37,6 @@ messageViewer::messageViewer(QWidget *parent)
     QHBoxLayout *horiz;
     horiz = new QHBoxLayout();
     vert->addWidget(menubar);
-    //vert->addWidget(openButton);
     sideList = new QListView(this);
     mainList = new QListView(this);
     horiz->addWidget(sideList);
@@ -51,10 +49,10 @@ messageViewer::messageViewer(QWidget *parent)
     QAction *contacts = fileMenu->addAction("Import Contacts");
     QAction *cleanContact = fileMenu->addAction("Cleanup Contacts");
     QAction *clearDB = fileMenu->addAction("Clear DB");
-
+    colorList.append("red");
+    colorList.append("green");
 
     menubar->addMenu(fileMenu);
-    //connect(openButton, SIGNAL(clicked()), SLOT(csvImport()));
     connect(import, SIGNAL(triggered()), SLOT(csvImport()));
     connect(contacts, SIGNAL(triggered()), SLOT(contactImport()));
     connect(cleanContact, SIGNAL(triggered()), SLOT(cleanContacts()));
@@ -91,12 +89,7 @@ void messageViewer::csvImport(){
     CSVparser parser(temp);
     parsedMessages = new QStandardItemModel();
     parsedMessages = parser.parse();
-    //qDebug()<<parsedMessages->columnCount()<<endl;
     parsedMessages = cleanup(parsedMessages);
-    //qDebug()<<parsedMessages->columnCount()<<endl;
-
-    //qDebug()<<parsedMessages->item(0,3)->text();
-    //qDebug()<<parsedMessages->item(4,2)->text();
 
     bool res = dbOpen();
 
@@ -125,24 +118,6 @@ void messageViewer::csvImport(){
                     personID = parsedMessages->item(i,3);
 
                 QStandardItem *text = parsedMessages->item(i,7);
-                //QString uid = (state->text() + time->text() + personID->text() + text->text()).toUtf8().toBase64();
-
-                //QString query = QString("INSERT INTO messages (mState, mTime, mPersonID, mText) VALUES (%1, '%2', '%3', '%4');").arg(state->text(), time->text(), personID->text(), text->text().toUtf8().toBase64());
-                //QString query = QString("%1 %2 %3 %4").arg(state->text(), ,"","");
-                //qDebug()<<query;
-                //query
-                //qDebug()<<query;
-                //qDebug()<<state->text();//<<time->text()<<personID->text();
-                /*qry.prepare("INSERT INTO messages (mState, mTime, mPersonID, mText)"
-                            "VALUES (?, ?, ?, ?)");
-                qDebug()<<qry.boundValues().count();
-
-                qry.addBindValue(state->text().toInt());
-                qry.addBindValue(time->text());
-                qry.addBindValue(personID->text());
-                qry.addBindValue(text->text());
-                qDebug()<<qry.boundValues().count();*/
-                //qDebug()<<query;
                 qry.prepare("INSERT OR IGNORE INTO messages (mState, mTime, mPersonID, mText)"
                             "VALUES (?, ?, ?, ?);");
                 qry.addBindValue(state->text().toInt());
@@ -172,7 +147,6 @@ void messageViewer::csvImport(){
             else{
                 contactsData = new QStandardItemModel(this);
                 QStandardItem *parentItem = contactsData->invisibleRootItem();
-                //QSqlQuery qry;
                 qry.prepare("SELECT DISTINCT mPersonID FROM messages;");
                 if(!qry.exec())
                     return;
@@ -355,11 +329,9 @@ void messageViewer::updateContactsTable(){
             if(intQry.exec()){
                 intQry.next();
                 temp = intQry.value(0).toInt();
-                //qDebug()<<temp;
                 if(map.find(qry.value("displayString").toString()) != map.end()){
                     temp = temp + map.value(qry.value("displayString").toString());
                 }
-                //qDebug()<<qry.value("alias").toString()<<temp;
                 map.insert(qry.value("displayString").toString(), temp);
                 timeMap.insert(qry.value("displayString").toString(), intQry.value(1).toString());
             }
@@ -372,7 +344,6 @@ void messageViewer::updateContactsTable(){
     QMapIterator<QString, int> iterator(map);
     while(iterator.hasNext()){
         iterator.next();
-
         qry.bindValue(":name", iterator.key());
         qry.bindValue(":numMessages", iterator.value());
         qry.bindValue(":lastMssg", timeMap.value(iterator.key()));
@@ -414,7 +385,8 @@ void messageViewer::updateMessages(QModelIndex index){
 
             while(intQry.next()){
                 QStandardItem *temp = new QStandardItem(intQry.value("mText").toString());
-                item->setData(intQry.value("mState").toInt(), Qt::UserRole+1);
+                //item->setData(intQry.value("mState").toInt(), Qt::UserRole+1);
+                temp->setData(QBrush(QColor(colorList[intQry.value("mState").toInt()-1])), Qt::BackgroundRole);
                 item->appendRow(temp);
             }
 
@@ -573,9 +545,22 @@ void messageViewer::dbDelete(){
     QStringList path = QStandardPaths::standardLocations(QStandardPaths::DataLocation);
     QString filename = path.first().append(QDir::separator()).append("my.db.sqlite");
     QFile::remove(filename);
-    if(contactsData->hasChildren())
+    if(contactsData!=0)
         contactsData->clear();
-    if(messagesData->hasChildren())
-        contactsData->clear();
-
+    if(messagesData!=0)
+        messagesData->clear();
 }
+
+/*
+class ListItemDelegate : public QItemDelegate{
+    Q_OBJECT
+
+public:
+    ListItemDelegate(QObject *parent = 0);
+    void paint ( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index );
+};
+
+ListItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index){
+    int state = index.data(Qt::UserRole+1);
+
+}*/

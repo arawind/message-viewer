@@ -14,14 +14,15 @@ public:
     messageViewer(QWidget *parent = 0);
     ~messageViewer();
 private:
-    QStandardItemModel *parsedMessages, *parsedContacts;
+    QStandardItemModel *parsedMessages = 0, *parsedContacts = 0;
     QStandardItemModel *cleanup(QStandardItemModel*);
-    QListView *sideList, *mainList;
+    QListView *sideList = 0, *mainList = 0;
     bool dbOpen();
     QSqlDatabase dbase;
     void setListViews();
-    QStandardItemModel *contactsData, *messagesData;
+    QStandardItemModel *contactsData = 0, *messagesData = 0;
     void updateContactsTable();
+    QStringList colorList;
 
 private slots:
     void csvImport();
