@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QStandardItemModel>
 #include <QListView>
+#include <QTextEdit>
 #include <QSqlDatabase>
 
 class messageViewer : public QWidget
@@ -23,6 +24,7 @@ private:
     QStandardItemModel *contactsData = 0, *messagesData = 0;
     void updateContactsTable();
     QStringList colorList;
+    QTextEdit *filter;
 
 private slots:
     void csvImport();
@@ -31,6 +33,7 @@ private slots:
     void contactImport();
     void fbImporter();
     void dbDelete();
+    void filterer();
 };
 
 #endif // MESSAGEVIEWER_H

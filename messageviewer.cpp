@@ -15,6 +15,7 @@
 #include <QSqlQuery>
 #include <QProgressDialog>
 #include <QListView>
+#include <QTextEdit>
 #include <QByteArray>
 #include <QSqlRecord>
 #include <QRegularExpression>
@@ -39,8 +40,12 @@ messageViewer::messageViewer(QWidget *parent)
     vert->addWidget(menubar);
     sideList = new QListView(this);
     mainList = new QListView(this);
+    filter = new QTextEdit();
+    filter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    filter->setMaximumHeight(25);
     horiz->addWidget(sideList);
     horiz->addWidget(mainList);
+    vert->addWidget(filter);
     vert->addLayout(horiz);
     setLayout(vert);
     fileMenu = new QMenu("Messages",menubar);
@@ -58,6 +63,7 @@ messageViewer::messageViewer(QWidget *parent)
     connect(cleanContact, SIGNAL(triggered()), SLOT(cleanContacts()));
     connect(fbImport, SIGNAL(triggered()), SLOT(fbImporter()));
     connect(clearDB, SIGNAL(triggered()), SLOT(dbDelete()));
+    connect(filter, SIGNAL(textChanged()), SLOT(filterer()));
     connect(sideList, SIGNAL(clicked(QModelIndex)), SLOT(updateMessages(QModelIndex)));
 
     if(dbOpen())
@@ -551,16 +557,7 @@ void messageViewer::dbDelete(){
         messagesData->clear();
 }
 
-/*
-class ListItemDelegate : public QItemDelegate{
-    Q_OBJECT
+void messageViewer::filterer(){
+    QString text = filter->toPlainText();
 
-public:
-    ListItemDelegate(QObject *parent = 0);
-    void paint ( QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index );
-};
-
-ListItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index){
-    int state = index.data(Qt::UserRole+1);
-
-}*/
+}
