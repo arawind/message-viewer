@@ -15,7 +15,7 @@
 #include <QSqlQuery>
 #include <QProgressDialog>
 #include <QListView>
-#include <QTextEdit>
+#include <QLineEdit>
 #include <QByteArray>
 #include <QSqlRecord>
 #include <QRegularExpression>
@@ -40,9 +40,9 @@ messageViewer::messageViewer(QWidget *parent)
     vert->addWidget(menubar);
     sideList = new QListView(this);
     mainList = new QListView(this);
-    filter = new QTextEdit();
+    filter = new QLineEdit();
     filter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    filter->setMaximumHeight(25);
+    //filter->setMaximumHeight(25);
     horiz->addWidget(sideList);
     horiz->addWidget(mainList);
     vert->addWidget(filter);
@@ -63,7 +63,7 @@ messageViewer::messageViewer(QWidget *parent)
     connect(cleanContact, SIGNAL(triggered()), SLOT(cleanContacts()));
     connect(fbImport, SIGNAL(triggered()), SLOT(fbImporter()));
     connect(clearDB, SIGNAL(triggered()), SLOT(dbDelete()));
-    connect(filter, SIGNAL(textChanged()), SLOT(filterer()));
+    connect(filter, SIGNAL(textChanged(QString)), SLOT(filterer(QString)));
     connect(sideList, SIGNAL(clicked(QModelIndex)), SLOT(updateMessages(QModelIndex)));
 
     if(dbOpen())
@@ -240,7 +240,8 @@ bool messageViewer::dbOpen(){
 
 void messageViewer::setListViews(){
     if(!dbase.isOpen())
-        return;
+        if(!dbOpen())
+            return;
     QSqlQuery qry;
     qry.prepare("SELECT name, lastMssgTime, numMessages FROM contacts WHERE numMessages > 0 ORDER BY lastMssgTime DESC;");
     if(!qry.exec())
@@ -557,7 +558,31 @@ void messageViewer::dbDelete(){
         messagesData->clear();
 }
 
-void messageViewer::filterer(){
-    QString text = filter->toPlainText();
+void messageViewer::filterer(QString text){
 
+    if(text.size()< 3){
+        setListViews();
+    }
+    else{
+        if(!dbase.isOpen())
+            if(!dbOpen())
+                return;
+        QSqlQuery qry;
+        qry.prepare("SELECT name, lastMssgTime, numMessages FROM contacts WHERE numMessages > 0 AND name LIKE :text ORDER BY lastMssgTime DESC ;");
+        qry.bindValue(":text", "%"+text+"%");
+        if(!qry.exec()){
+            qDebug()<<qry.lastError();
+            return;
+        }
+        contactsData = new QStandardItemModel(this);
+        QStandardItem *parent = contactsData->invisibleRootItem();
+        while(qry.next()){
+            QStandardItem *item = new QStandardItem(qry.value("name").toString());
+            item->setData(qry.value("lastMssgTime"), Qt::UserRole+1);
+            item->setData(qry.value("numMessages"), Qt::UserRole+2);
+            parent->appendRow(item);
+        }
+        sideList->setModel(contactsData);
+        dbase.close();
+    }
 }
